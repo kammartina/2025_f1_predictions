@@ -6,7 +6,7 @@ __pycache__/
 .Python
 
 # Virtual environments
-/.venv
+venv/
 
 # FastF1 cache directory
 f1_cache/
