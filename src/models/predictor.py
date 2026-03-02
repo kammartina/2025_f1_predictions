@@ -183,6 +183,7 @@ class RacePredictor:
         )
 
         records = []
+        detail  = []   # per-driver predicted vs actual for every fold
         with tqdm(
             race_keys.iterrows(),
             total=len(race_keys),
@@ -241,14 +242,26 @@ class RacePredictor:
                     "n_drivers":     len(test_df),
                 })
 
-        cv_results = pd.DataFrame(records)
+                # Per-driver predicted vs actual for this fold
+                for i, driver in enumerate(drivers_eval):
+                    detail.append({
+                        "year":               y_val,
+                        "round":              r_val,
+                        "driver_code":        driver,
+                        "predicted_position": int(pred_rank.iloc[i]),
+                        "actual_position":    int(y_eval[i]),
+                        "source":             "cv",
+                    })
+
+        cv_results  = pd.DataFrame(records)
+        predictions = pd.DataFrame(detail)
         if not cv_results.empty:
             logger.info(
                 "LORO-CV — mean Spearman r: %.3f | mean top-3 overlap: %.1f/3",
                 cv_results["spearman_r"].mean(),
                 cv_results["top3_overlap"].mean(),
             )
-        return cv_results
+        return cv_results, predictions
 
     # ------------------------------------------------------------------
     # Feature importance

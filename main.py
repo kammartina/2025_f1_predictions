@@ -81,6 +81,8 @@ def cmd_collect(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
 
 
 def cmd_train(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
+    from src.db.database import F1Database
+
     years = args.years if args.years else None
     cv = pipeline.train(years=years)
     if not cv.empty:
@@ -90,6 +92,24 @@ def cmd_train(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
             f"\nMean Spearman r : {cv['spearman_r'].mean():.3f}"
             f"\nMean top-3 hits : {cv['top3_overlap'].mean():.2f} / 3"
         )
+
+        # Print the full predicted vs actual grid for the last (most recent) race
+        last_year  = int(cv["year"].max())
+        last_round = int(cv.loc[cv["year"] == last_year, "round"].max())
+        with F1Database(pipeline.db_path) as db:
+            preds = db.get_predictions(year=last_year, round_num=last_round, source="cv")
+            race_name = db.query(
+                "SELECT circuit_name FROM races WHERE year = ? AND round = ?",
+                [last_year, last_round],
+            )
+        if not preds.empty:
+            name = race_name["circuit_name"].iloc[0] if not race_name.empty else f"Round {last_round}"
+            print(f"\nBacktested grid — {last_year} R{last_round:02d} {name}:")
+            print(f"{'Pred':>4}  {'Driver':>6}  {'Actual':>6}")
+            print("─" * 22)
+            for _, row in preds.sort_values("predicted_position").iterrows():
+                actual = int(row["actual_position"]) if row["actual_position"] is not None else "—"
+                print(f"{int(row['predicted_position']):>4}  {row['driver_code']:>6}  {str(actual):>6}")
 
 
 def cmd_predict(args: argparse.Namespace, pipeline: F1Pipeline) -> None:

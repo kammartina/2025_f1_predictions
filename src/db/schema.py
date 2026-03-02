@@ -177,6 +177,18 @@ CREATE TABLE IF NOT EXISTS weather (
 )
 """
 
+CREATE_PREDICTIONS = """
+CREATE TABLE IF NOT EXISTS predictions (
+    year               INTEGER NOT NULL,
+    round              INTEGER NOT NULL,
+    driver_code        TEXT    NOT NULL,
+    predicted_position INTEGER,
+    actual_position    INTEGER,         -- NULL for future (live) predictions
+    source             TEXT    NOT NULL, -- 'cv' (backtested) or 'live' (pre-race)
+    PRIMARY KEY (year, round, driver_code, source)
+)
+"""
+
 # Ordered list used by F1Database.create_tables()
 ALL_TABLES = [
     CREATE_RACES,
@@ -188,4 +200,5 @@ ALL_TABLES = [
     CREATE_PIT_STOPS,
     CREATE_TELEMETRY_SUMMARY,
     CREATE_WEATHER,
+    CREATE_PREDICTIONS,
 ]

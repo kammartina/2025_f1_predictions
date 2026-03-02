@@ -171,11 +171,22 @@ class F1Pipeline:
             return pd.DataFrame()
 
         logger.info("Training on %d driver-race records …", len(matrix))
-        cv_results = self._predictor.evaluate_loro(matrix)
+        cv_results, cv_predictions = self._predictor.evaluate_loro(matrix)
         self._predictor.train(matrix)
 
         if save:
             self._predictor.save(self.model_path)
+
+        # Persist CV predictions (overwrite any previous run for these years)
+        if not cv_predictions.empty:
+            with F1Database(self.db_path) as db:
+                trained_years = cv_predictions["year"].unique().tolist()
+                for y in trained_years:
+                    db.execute(
+                        "DELETE FROM predictions WHERE year = ? AND source = 'cv'",
+                        [int(y)],
+                    )
+                db.insert_df(cv_predictions, "predictions")
 
         return cv_results
 
@@ -263,6 +274,20 @@ class F1Pipeline:
             "Predicted winner for %d R%d: %s",
             year, round_num, predictions.iloc[0]["driver_code"],
         )
+
+        # Persist live predictions (overwrite any previous prediction for this race)
+        with F1Database(self.db_path) as db:
+            db.execute(
+                "DELETE FROM predictions WHERE year = ? AND round = ? AND source = 'live'",
+                [year, round_num],
+            )
+            live_df = predictions[["driver_code", "predicted_position"]].copy()
+            live_df["year"]            = year
+            live_df["round"]           = round_num
+            live_df["actual_position"] = None
+            live_df["source"]          = "live"
+            db.insert_df(live_df, "predictions")
+
         return predictions
 
     # ------------------------------------------------------------------

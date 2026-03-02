@@ -220,3 +220,22 @@ class F1Database:
             "SELECT * FROM telemetry_summary WHERE year = ? AND round = ?",
             [year, round_num],
         )
+
+    def get_predictions(
+        self,
+        year: Optional[int] = None,
+        round_num: Optional[int] = None,
+        source: Optional[str] = None,
+    ) -> pd.DataFrame:
+        filters, params = [], []
+        if year is not None:
+            filters.append("year = ?");  params.append(year)
+        if round_num is not None:
+            filters.append("round = ?"); params.append(round_num)
+        if source is not None:
+            filters.append("source = ?"); params.append(source)
+        where = f"WHERE {' AND '.join(filters)}" if filters else ""
+        return self.query(
+            f"SELECT * FROM predictions {where} ORDER BY year, round, predicted_position",
+            params or None,
+        )
