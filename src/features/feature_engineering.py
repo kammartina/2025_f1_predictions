@@ -77,6 +77,7 @@ class FeatureEngineer:
         all_rows: list[pd.DataFrame] = []
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", RuntimeWarning)
+            warnings.simplefilter("ignore", FutureWarning)
             with tqdm(
                 races.iterrows(),
                 total=len(races),

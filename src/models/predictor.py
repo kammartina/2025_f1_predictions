@@ -293,6 +293,9 @@ class RacePredictor:
         self._feature_cols = [c for c in all_cols if c in matrix.columns]
 
         X = matrix[self._feature_cols].copy()
+        # XGBoost requires int/float/bool — cast everything to numeric.
+        # None and non-parseable values become NaN, which XGBoost handles natively.
+        X = X.apply(pd.to_numeric, errors="coerce")
         y = matrix["finish_position"].copy()
 
         # Drop rows where target is unknown
