@@ -50,6 +50,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
+from tqdm import tqdm
 from xgboost import XGBRegressor
 
 logger = logging.getLogger(__name__)
@@ -182,47 +183,55 @@ class RacePredictor:
         )
 
         records = []
-        for _, race_key in race_keys.iterrows():
-            y_val = int(race_key["year"])
-            r_val = int(race_key["round"])
+        with tqdm(
+            race_keys.iterrows(),
+            total=len(race_keys),
+            desc="Cross-validation",
+            unit="fold",
+            ncols=72,
+        ) as pbar:
+            for _, race_key in pbar:
+                y_val = int(race_key["year"])
+                r_val = int(race_key["round"])
+                pbar.set_postfix_str(f"{y_val} R{r_val:02d}")
 
-            train_mask = ~((matrix["year"] == y_val) & (matrix["round"] == r_val))
-            test_mask = (matrix["year"] == y_val) & (matrix["round"] == r_val)
+                train_mask = ~((matrix["year"] == y_val) & (matrix["round"] == r_val))
+                test_mask = (matrix["year"] == y_val) & (matrix["round"] == r_val)
 
-            train_df = matrix[train_mask]
-            test_df = matrix[test_mask]
+                train_df = matrix[train_mask]
+                test_df = matrix[test_mask]
 
-            if len(train_df) < 20 or test_df.empty:
-                logger.debug("Not enough training data to evaluate race %d R%d.", y_val, r_val)
-                continue
+                if len(train_df) < 20 or test_df.empty:
+                    logger.debug("Not enough training data to evaluate race %d R%d.", y_val, r_val)
+                    continue
 
-            X_train, y_train, w_train = self._prepare(train_df)
-            X_test = test_df[self._feature_cols]
-            y_test = test_df["finish_position"]
+                X_train, y_train, w_train = self._prepare(train_df)
+                X_test = test_df[self._feature_cols]
+                y_test = test_df["finish_position"]
 
-            if y_test.isna().all():
-                continue
+                if y_test.isna().all():
+                    continue
 
-            tmp_model = XGBRegressor(**self._params)
-            tmp_model.fit(X_train, y_train, sample_weight=w_train)
-            raw = tmp_model.predict(X_test)
+                tmp_model = XGBRegressor(**self._params)
+                tmp_model.fit(X_train, y_train, sample_weight=w_train)
+                raw = tmp_model.predict(X_test)
 
-            # Rank predictions
-            pred_rank = pd.Series(raw).rank().astype(int)
-            actual_rank = y_test.rank().astype(int)
+                # Rank predictions
+                pred_rank = pd.Series(raw).rank().astype(int)
+                actual_rank = y_test.rank().astype(int)
 
-            spearman = spearmanr(pred_rank, actual_rank).statistic
-            top3_pred = set(test_df["driver_code"].iloc[pred_rank.nsmallest(3).index].tolist())
-            top3_actual = set(test_df["driver_code"][y_test.nsmallest(3).index].tolist())
-            top3_overlap = len(top3_pred & top3_actual)
+                spearman = spearmanr(pred_rank, actual_rank).statistic
+                top3_pred = set(test_df["driver_code"].iloc[pred_rank.nsmallest(3).index].tolist())
+                top3_actual = set(test_df["driver_code"][y_test.nsmallest(3).index].tolist())
+                top3_overlap = len(top3_pred & top3_actual)
 
-            records.append({
-                "year":          y_val,
-                "round":         r_val,
-                "spearman_r":    round(float(spearman), 3),
-                "top3_overlap":  top3_overlap,
-                "n_drivers":     len(test_df),
-            })
+                records.append({
+                    "year":          y_val,
+                    "round":         r_val,
+                    "spearman_r":    round(float(spearman), 3),
+                    "top3_overlap":  top3_overlap,
+                    "n_drivers":     len(test_df),
+                })
 
         cv_results = pd.DataFrame(records)
         if not cv_results.empty:

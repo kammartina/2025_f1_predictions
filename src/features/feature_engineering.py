@@ -25,9 +25,12 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
+import warnings
+
 import numpy as np
 import pandas as pd
 from scipy import stats
+from tqdm import tqdm
 
 from src.db.database import F1Database
 from src.db.schema import CIRCUIT_TYPE_ENCODING
@@ -72,11 +75,22 @@ class FeatureEngineer:
         races = races.sort_values(["year", "round"]).reset_index(drop=True)
 
         all_rows: list[pd.DataFrame] = []
-        for _, race in races.iterrows():
-            year, round_num = int(race["year"]), int(race["round"])
-            features = self._build_race_features(year, round_num, races)
-            if features is not None and not features.empty:
-                all_rows.append(features)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            with tqdm(
+                races.iterrows(),
+                total=len(races),
+                desc="Building features",
+                unit="race",
+                ncols=72,
+            ) as pbar:
+                for _, race in pbar:
+                    year, round_num = int(race["year"]), int(race["round"])
+                    name = str(race.get("circuit_name", f"R{round_num}"))
+                    pbar.set_postfix_str(f"{year} R{round_num:02d} {name[:18]}")
+                    features = self._build_race_features(year, round_num, races)
+                    if features is not None and not features.empty:
+                        all_rows.append(features)
 
         if not all_rows:
             return pd.DataFrame()
