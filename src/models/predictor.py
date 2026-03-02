@@ -292,6 +292,7 @@ class RacePredictor:
     def load(self, path: str = "models/predictor.json") -> None:
         self._model = XGBRegressor(**self._params)
         self._model.load_model(path)
+        self._feature_cols = list(self._model.get_booster().feature_names or [])
         logger.info("Model loaded from %s", path)
 
     # ------------------------------------------------------------------

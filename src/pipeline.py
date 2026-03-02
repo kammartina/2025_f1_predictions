@@ -311,6 +311,8 @@ class F1Pipeline:
 
     def feature_importance(self) -> pd.DataFrame:
         """Return feature importances from the trained model."""
+        if self._predictor._model is None:
+            self._predictor.load(self.model_path)
         return self._predictor.feature_importance()
 
     def database_summary(self) -> None:
