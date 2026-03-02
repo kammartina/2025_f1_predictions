@@ -146,7 +146,7 @@ class RacePredictor:
         if self._model is None:
             raise RuntimeError("Call train() before predict().")
 
-        X = features_df[self._feature_cols].copy()
+        X = features_df[self._feature_cols].copy().apply(pd.to_numeric, errors="coerce")
         raw_scores = self._model.predict(X)
 
         result = features_df[["driver_code"]].copy()
@@ -206,7 +206,7 @@ class RacePredictor:
                     continue
 
                 X_train, y_train, w_train = self._prepare(train_df)
-                X_test = test_df[self._feature_cols]
+                X_test = test_df[self._feature_cols].apply(pd.to_numeric, errors="coerce")
                 y_test = test_df["finish_position"]
 
                 if y_test.isna().all():
@@ -216,13 +216,21 @@ class RacePredictor:
                 tmp_model.fit(X_train, y_train, sample_weight=w_train)
                 raw = tmp_model.predict(X_test)
 
-                # Rank predictions
-                pred_rank = pd.Series(raw).rank().astype(int)
-                actual_rank = y_test.rank().astype(int)
+                # Restrict evaluation to drivers with a known finish position
+                # (some retire without an official classified position → NaN)
+                valid = y_test.notna().values
+                if valid.sum() < 3:
+                    continue
+                raw_eval     = raw[valid]
+                y_eval       = y_test.values[valid]
+                drivers_eval = test_df["driver_code"].values[valid]
+
+                pred_rank   = pd.Series(raw_eval).rank().astype(int)
+                actual_rank = pd.Series(y_eval).rank().astype(int)
 
                 spearman = spearmanr(pred_rank, actual_rank).statistic
-                top3_pred = set(test_df["driver_code"].iloc[pred_rank.nsmallest(3).index].tolist())
-                top3_actual = set(test_df["driver_code"][y_test.nsmallest(3).index].tolist())
+                top3_pred   = set(drivers_eval[pred_rank.nsmallest(3).index])
+                top3_actual = set(drivers_eval[actual_rank.nsmallest(3).index])
                 top3_overlap = len(top3_pred & top3_actual)
 
                 records.append({

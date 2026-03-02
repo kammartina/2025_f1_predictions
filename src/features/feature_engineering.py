@@ -93,10 +93,10 @@ class FeatureEngineer:
                     if features is not None and not features.empty:
                         all_rows.append(features)
 
-        if not all_rows:
-            return pd.DataFrame()
+            if not all_rows:
+                return pd.DataFrame()
 
-        matrix = pd.concat(all_rows, ignore_index=True)
+            matrix = pd.concat(all_rows, ignore_index=True)
         logger.info(
             "Feature matrix: %d rows × %d columns", len(matrix), matrix.shape[1]
         )
