@@ -112,6 +112,9 @@ class SessionCollector(BaseCollector):
             try:
                 race_session = fastf1.get_session(year, round_num, "R")
                 race_session.load(telemetry=include_telemetry, weather=True, laps=True)
+                if len(race_session.drivers) == 0:
+                    logger.warning("No data available for %d R%d (session not yet published)", year, round_num)
+                    return
             except Exception as exc:
                 logger.error("Failed to load race session %d R%d: %s", year, round_num, exc)
                 return
