@@ -98,7 +98,9 @@ class F1Database:
         self.conn.register(view, df)
         try:
             self.conn.execute(
-                f"INSERT OR IGNORE INTO {table} SELECT * FROM {view}"
+                f"INSERT OR REPLACE INTO {table} SELECT * FROM {view}"
+                if on_conflict.upper().startswith("DO UPDATE")
+                else f"INSERT INTO {table} SELECT * FROM {view} ON CONFLICT DO NOTHING"
             )
         finally:
             self.conn.unregister(view)

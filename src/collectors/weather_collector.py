@@ -160,6 +160,12 @@ class WeatherCollector(BaseCollector):
                 return
 
         race_date = _to_date(meta["race_date"])
+        if race_date >= date.today():
+            logger.info(
+                "Skipping Open-Meteo for %d R%d — race date %s is in the future.",
+                year, round_num, race_date,
+            )
+            return
         df = self._fetch_archive(meta["lat"], meta["lon"], race_date)
 
         if df is None or df.empty:

@@ -109,31 +109,37 @@ class SessionCollector(BaseCollector):
         ) as pbar:
             # ── Step 1: load race session from FastF1 ──────────────────────
             pbar.set_postfix_str("loading race session…")
+            race_available = False
             try:
                 race_session = fastf1.get_session(year, round_num, "R")
                 race_session.load(telemetry=include_telemetry, weather=True, laps=True)
                 if len(race_session.drivers) == 0:
-                    logger.warning("No data available for %d R%d (session not yet published)", year, round_num)
-                    return
+                    logger.warning(
+                        "Race data not yet published for %d R%d — skipping race steps.",
+                        year, round_num,
+                    )
+                else:
+                    race_available = True
             except Exception as exc:
-                logger.error("Failed to load race session %d R%d: %s", year, round_num, exc)
-                return
+                logger.warning("Could not load race session %d R%d: %s", year, round_num, exc)
             pbar.update(1)
 
             # ── Step 2: store race data ────────────────────────────────────
-            pbar.set_postfix_str("storing race data…")
-            self._store_race_metadata(race_session, year, round_num)
-            self._store_drivers_and_teams(race_session, year)
-            self._store_session_results(race_session, year, round_num)
-            self._store_lap_data(race_session, year, round_num)
-            self._store_pit_stops(race_session, year, round_num)
-            self._store_weather(race_session, year, round_num, session_type="R")
+            if race_available:
+                pbar.set_postfix_str("storing race data…")
+                self._store_race_metadata(race_session, year, round_num)
+                self._store_drivers_and_teams(race_session, year)
+                self._store_session_results(race_session, year, round_num)
+                self._store_lap_data(race_session, year, round_num)
+                self._store_pit_stops(race_session, year, round_num)
+                self._store_weather(race_session, year, round_num, session_type="R")
             pbar.update(1)
 
             # ── Step 3 (optional): telemetry ──────────────────────────────
             if include_telemetry:
-                pbar.set_postfix_str("storing telemetry…")
-                self._store_telemetry_summary(race_session, year, round_num)
+                if race_available:
+                    pbar.set_postfix_str("storing telemetry…")
+                    self._store_telemetry_summary(race_session, year, round_num)
                 pbar.update(1)
 
             # ── Step 4: load qualifying session ───────────────────────────
@@ -343,6 +349,13 @@ class SessionCollector(BaseCollector):
     ) -> None:
         weather = session.weather_data
         if weather is None or weather.empty:
+            return
+
+        existing = self.db.query(
+            "SELECT COUNT(*) AS n FROM weather WHERE year = ? AND round = ? AND session_type = ?",
+            [year, round_num, session_type],
+        )
+        if int(existing["n"].iloc[0]) > 0:
             return
 
         rows = []
