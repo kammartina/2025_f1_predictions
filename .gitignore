@@ -11,6 +11,10 @@ venv/
 # FastF1 cache directory
 f1_cache/
 
+# DuckDB database (regenerate with: python main.py collect)
+data/*.db
+data/*.db.wal
+
 # IDE
 .vscode/
 .idea/
