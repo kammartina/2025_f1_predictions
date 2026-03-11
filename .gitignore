@@ -11,6 +11,9 @@ venv/
 # FastF1 cache directory
 f1_cache/
 
+# Model training log
+models/training_log.csv
+
 # DuckDB database (regenerate with: python main.py collect)
 data/*.db
 data/*.db.wal
