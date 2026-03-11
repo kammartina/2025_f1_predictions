@@ -303,7 +303,7 @@ class SessionCollector(BaseCollector):
 
         rows = []
         for driver_code in laps["Driver"].unique():
-            driver_laps = laps.pick_driver(driver_code).reset_index(drop=True)
+            driver_laps = laps.pick_drivers(driver_code).reset_index(drop=True)
 
             pit_in_laps = driver_laps[driver_laps["PitInTime"].notna()]
             for _, pit_in_lap in pit_in_laps.iterrows():
@@ -393,7 +393,7 @@ class SessionCollector(BaseCollector):
 
         rows = []
         for driver_code in laps["Driver"].unique():
-            driver_laps = laps.pick_driver(driver_code)
+            driver_laps = laps.pick_drivers(driver_code)
             for _, lap in driver_laps.iterrows():
                 lap_num = lap.get("LapNumber")
                 if pd.isna(lap_num):
