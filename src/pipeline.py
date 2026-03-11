@@ -195,7 +195,7 @@ class F1Pipeline:
         return cv_results
 
     def _append_training_log(self, cv_results: pd.DataFrame) -> None:
-        """Append one row of summary metrics to models/training_log.csv."""
+        """Append one row of summary metrics + top-5 features to models/training_log.csv."""
         if cv_results.empty:
             return
         log_path = os.path.join(os.path.dirname(self.model_path), "training_log.csv")
@@ -208,6 +208,13 @@ class F1Pipeline:
             "mean_spearman_r": round(float(cv_results["spearman_r"].mean()), 3),
             "mean_top3":       round(float(cv_results["top3_overlap"].mean()), 2),
         }
+        try:
+            top5 = self._predictor.feature_importance().head(5)
+            for i, (feat, imp) in enumerate(zip(top5["feature"], top5["importance"]), 1):
+                row[f"top{i}_feature"]    = feat
+                row[f"top{i}_importance"] = round(float(imp), 4)
+        except Exception:
+            pass
         write_header = not os.path.exists(log_path)
         with open(log_path, "a", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=row.keys())
