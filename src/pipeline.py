@@ -24,7 +24,10 @@ Typical workflow
 
 from __future__ import annotations
 
+import csv
 import logging
+import os
+from datetime import datetime
 from typing import Optional
 
 import fastf1
@@ -188,7 +191,30 @@ class F1Pipeline:
                     )
                 db.insert_df(cv_predictions, "predictions")
 
+        self._append_training_log(cv_results)
         return cv_results
+
+    def _append_training_log(self, cv_results: pd.DataFrame) -> None:
+        """Append one row of summary metrics to models/training_log.csv."""
+        if cv_results.empty:
+            return
+        log_path = os.path.join(os.path.dirname(self.model_path), "training_log.csv")
+        last_year  = int(cv_results["year"].max())
+        last_round = int(cv_results.loc[cv_results["year"] == last_year, "round"].max())
+        row = {
+            "timestamp":       datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "trained_through": f"{last_year} R{last_round:02d}",
+            "n_races":         len(cv_results),
+            "mean_spearman_r": round(float(cv_results["spearman_r"].mean()), 3),
+            "mean_top3":       round(float(cv_results["top3_overlap"].mean()), 2),
+        }
+        write_header = not os.path.exists(log_path)
+        with open(log_path, "a", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=row.keys())
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+        logger.info("Training log updated → %s", log_path)
 
     # ------------------------------------------------------------------
     # Prediction
