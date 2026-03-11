@@ -391,8 +391,15 @@ class SessionCollector(BaseCollector):
         if laps is None or laps.empty:
             return
 
+        driver_codes = laps["Driver"].unique()
         rows = []
-        for driver_code in laps["Driver"].unique():
+        for driver_code in tqdm(
+            driver_codes,
+            desc="      telemetry",
+            unit="driver",
+            leave=False,
+            ncols=72,
+        ):
             driver_laps = laps.pick_drivers(driver_code)
             for _, lap in driver_laps.iterrows():
                 lap_num = lap.get("LapNumber")
