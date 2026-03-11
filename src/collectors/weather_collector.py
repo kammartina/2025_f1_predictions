@@ -175,6 +175,9 @@ class WeatherCollector(BaseCollector):
         df["year"]         = year
         df["round"]        = round_num
         df["session_type"] = "OM_HIST"
+        df = df[["year", "round", "session_type", "time_offset",
+                  "air_temp", "track_temp", "humidity", "pressure",
+                  "rainfall", "wind_speed", "wind_direction"]]
         self.db.insert_df(df, "weather")
 
         logger.info(
