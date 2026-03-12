@@ -1,64 +1,179 @@
-# 2025_f1_predictions
+# F1 Race Predictions — 2025/2026 Season
 
-# 🏎️ F1 Predictions 2025 - Machine Learning Model
+A machine-learning pipeline that predicts F1 race finishing order using **XGBoost**, **FastF1**, and **Open-Meteo** weather data. Trained on lap-level historical data and evaluated with Leave-One-Race-Out cross-validation.
 
-Welcome to the **F1 Predictions 2025** repository! This project uses **machine learning, FastF1 API data, and historical F1 race results** to predict race outcomes for the 2025 Formula 1 season.
+---
 
-## 🚀 Project Overview
-This repository contains a **Gradient Boosting Machine Learning model** that predicts race results based on past performance, qualifying times, and other structured F1 data. The model leverages:
-- FastF1 API for historical race data
-- 2024 race results
-- 2025 qualifying session results
-- Over the course of the season we will be adding additional data to improve our model as well
-- Feature engineering techniques to improve predictions
+## How It Works
 
-## 📊 Data Sources
-- **FastF1 API**: Fetches lap times, race results, and telemetry data
-- **2025 Qualifying Data**: Used for prediction
-- **Historical F1 Results**: Processed from FastF1 for training the model
+```
+collect → train → predict
+```
 
-## 🏁 How It Works
-1. **Data Collection**: The script pulls relevant F1 data using the FastF1 API.
-2. **Preprocessing & Feature Engineering**: Converts lap times, normalizes driver names, and structures race data.
-3. **Model Training**: A **Gradient Boosting Regressor** is trained using 2024 race results.
-4. **Prediction**: The model predicts race times for 2025 and ranks drivers accordingly.
-5. **Evaluation**: Model performance is measured using **Mean Absolute Error (MAE)**.
+1. **Collect** — Pulls race and qualifying sessions from the FastF1 API and historical weather from Open-Meteo. Stores everything in a local DuckDB database (`data/f1_data.db`).
+2. **Train** — Builds a 30-feature matrix (one row per driver per race) and trains an XGBoost regressor. Runs Leave-One-Race-Out CV to report Spearman correlation and top-3 overlap accuracy.
+3. **Predict** — After qualifying is collected for an upcoming race, generates a ranked finishing-order prediction. Automatically fetches an Open-Meteo race-day forecast (falls back to historical median if the race is too far out).
 
-### Dependencies
-- `fastf1`
-- `numpy`
-- `pandas`
-- `scikit-learn`
-- `matplotlib`
+---
 
-## File Structure 
-- For every race the end of the file will be numbered in correlation to the race on the calendar, ex. prediction1 - Australia, prediction2 - China, etc.
+## Model
 
-## 🔧 Usage
-Run the prediction script:
+| | |
+|---|---|
+| **Algorithm** | XGBoost (regression → ranked 1–20) |
+| **Validation** | Leave-One-Race-Out CV |
+| **Weighting** | Recency — recent races weighted higher (half-life = 12 races) |
+| **Missing values** | Passed directly to XGBoost (no imputation needed) |
+
+### Feature Groups (30 features)
+
+| Group | Features |
+|---|---|
+| Qualifying | `quali_time`, `quali_position`, `q3_time` |
+| Race pace | `clean_air_pace`, `avg_lap_time`, `avg_sector1/2/3` |
+| Tire degradation | `tire_deg_soft/medium/hard` (slope of lap time vs tire age) |
+| Pit stops | `avg_pit_duration` (team historical median) |
+| Championship standings | `driver_points_norm`, `constructor_points_norm` |
+| Driver form | `driver_form_3` (avg finish pos last 3 races), `dnf_rate`, `season_dnf_rate` |
+| Weather | `air_temp`, `track_temp`, `humidity`, `pressure`, `rainfall`, `wind_speed`, `wind_direction` |
+| Circuit | `circuit_type_enc` (street / technical / high_speed / mixed), `sc_probability` |
+| Telemetry (optional) | `tel_mean_speed`, `tel_max_speed`, `tel_brake_pct`, `tel_drs_pct` |
+
+### Latest Training Run (2026-03-11)
+
+| Metric | Value |
+|---|---|
+| Trained through | 2026 R01 (25 races) |
+| Mean Spearman r | 0.593 |
+| Mean top-3 overlap | 2.04 / 3 |
+| Top feature | `quali_position` (importance 0.238) |
+
+---
+
+## Project Structure
+
+```
+├── main.py                        # CLI entry point
+├── requirements.txt
+├── data/
+│   └── f1_data.db                 # DuckDB database (auto-created)
+├── models/
+│   ├── predictor.json             # Saved XGBoost model
+│   └── training_log.csv           # Per-run accuracy metrics + top features
+├── src/
+│   ├── pipeline.py                # F1Pipeline orchestrator
+│   ├── collectors/
+│   │   ├── session_collector.py   # FastF1 race + qualifying data
+│   │   └── weather_collector.py   # Open-Meteo historical + forecast
+│   ├── features/
+│   │   └── feature_engineering.py # Builds the training/prediction matrix
+│   ├── models/
+│   │   └── predictor.py           # XGBoost wrapper + LORO-CV
+│   └── db/
+│       ├── database.py            # DuckDB query helpers
+│       └── schema.py              # Table definitions + circuit metadata
+├── original_prediction_files/     # Earlier per-race script versions (archived)
+└── f1_cache/                      # FastF1 local cache
+```
+
+---
+
+## Setup
+
 ```bash
-python3 prediction1.py
-```
-Expected output:
-```
-🏁 Predicted 2025 Australian GP Winner 🏁
-Driver: Charles Leclerc, Predicted Race Time: 82.67s
-...
-🔍 Model Error (MAE): 3.22 seconds
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 ```
 
-## 📈 Model Performance
-The Mean Absolute Error (MAE) is used to evaluate how well the model predicts race times. Lower MAE values indicate more accurate predictions.
+**Dependencies:** `fastf1`, `xgboost`, `duckdb`, `pandas`, `numpy`, `scipy`, `scikit-learn`, `requests`, `matplotlib`, `tqdm`
 
-## 📌 Future Improvements
-- Incorporate **weather conditions** as a feature
-- Add **pit stop strategies** into the model
-- Explore **deep learning** models for improved accuracy
-- @mar_antaya on Instagram and TikTok will update with the latest predictions before every race of the 2025 F1 season
+---
 
-## 📜 License
-This project is licensed under the MIT License.
+## Usage
 
+### Collect data
 
-🏎️ **Start predicting F1 races like a data scientist!** 🚀
+```bash
+# Collect an entire season (run once to populate historical data)
+python main.py collect --year 2025
 
+# Collect a single round
+python main.py collect --year 2026 --round 1
+
+# Also collect telemetry (slow first run, then cached)
+python main.py collect --year 2025 --telemetry
+
+# Re-collect a round after a race finishes (to add results)
+python main.py collect --year 2026 --round 1 --force
+```
+
+### Train the model
+
+```bash
+# Train on all collected data
+python main.py train
+
+# Train on specific seasons only
+python main.py train --years 2025 2026
+```
+
+Output includes Leave-One-Race-Out CV results and a backtested grid for the most recent race.
+
+### Predict a race
+
+```bash
+# Auto-fetches Open-Meteo race-day forecast
+python main.py predict --year 2026 --round 2
+
+# Override weather manually
+python main.py predict --year 2026 --round 2 --air-temp 28 --track-temp 42 --rainfall 0
+
+# Use historical weather median instead of fetching a forecast
+python main.py predict --year 2026 --round 2 --no-auto-weather
+```
+
+Qualifying for the target round must be collected first.
+
+### Other commands
+
+```bash
+# Run LORO-CV without retraining the production model
+python main.py evaluate
+
+# Show feature importances from the trained model
+python main.py features
+
+# Print a summary of what is in the database
+python main.py summary
+```
+
+### Global options
+
+```
+--db     PATH    DuckDB database path  (default: data/f1_data.db)
+--cache  PATH    FastF1 cache dir      (default: f1_cache)
+--model  PATH    XGBoost model path    (default: models/predictor.json)
+```
+
+---
+
+## Typical Workflow Each Race Weekend
+
+```bash
+# 1. After qualifying — collect qualifying session
+python main.py collect --year 2026 --round 3
+
+# 2. Generate prediction (auto-fetches weather forecast)
+python main.py predict --year 2026 --round 3
+
+# 3. After the race — collect results and retrain
+python main.py collect --year 2026 --round 3 --force
+python main.py train
+```
+
+---
+
+## License
+
+MIT
