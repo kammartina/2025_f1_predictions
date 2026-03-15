@@ -81,26 +81,32 @@ class F1Pipeline:
         self,
         year: int,
         round_num: int,
+        sessions: str = "all",
         include_telemetry: bool = False,
         force: bool = False,
     ) -> None:
         """
         Fetch and store data for one race weekend.
 
-        Set force=True to re-collect a round that is already in the database
-        (useful after a race finishes to add actual race results).
+        Parameters
+        ----------
+        sessions : "all"   – qualifying + race (default)
+                   "quali" – qualifying only (run this after qualifying, before the race)
+                   "race"  – race only (run this after the race finishes)
+        force    : Re-collect even if data already exists in DB.
         """
         with F1Database(self.db_path) as db:
-            # 1. Race + qualifying data from FastF1
+            # 1. Session data from FastF1
             collector = SessionCollector(db, cache_path=self.cache_path)
-            collector.collect(year, round_num, include_telemetry=include_telemetry, force=force)
+            collector.collect(year, round_num, sessions=sessions, include_telemetry=include_telemetry, force=force)
 
-            # 2. Historical weather from Open-Meteo (race metadata must exist first)
+            # 2. Open-Meteo historical weather (only meaningful after the race date has passed)
             WeatherCollector(db).collect(year, round_num, force=force)
 
     def collect_season(
         self,
         year: int,
+        sessions: str = "all",
         include_telemetry: bool = False,
         force: bool = False,
     ) -> None:
@@ -135,6 +141,7 @@ class F1Pipeline:
                         try:
                             collector.collect(
                                 year, round_num,
+                                sessions=sessions,
                                 include_telemetry=include_telemetry,
                                 force=force,
                             )
@@ -319,6 +326,7 @@ class F1Pipeline:
             live_df["round"]           = round_num
             live_df["actual_position"] = None
             live_df["source"]          = "live"
+            live_df = live_df[["year", "round", "driver_code", "predicted_position", "actual_position", "source"]]
             db.insert_df(live_df, "predictions")
 
         return predictions

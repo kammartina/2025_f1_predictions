@@ -123,6 +123,13 @@ class F1Database:
         )
         return int(result["cnt"].iloc[0]) > 0
 
+    def qualifying_results_exist(self, year: int, round_num: int) -> bool:
+        result = self.query(
+            "SELECT COUNT(*) AS cnt FROM qualifying_results WHERE year = ? AND round = ?",
+            [year, round_num],
+        )
+        return int(result["cnt"].iloc[0]) > 0
+
     def lap_data_exists(self, year: int, round_num: int) -> bool:
         result = self.query(
             "SELECT COUNT(*) AS cnt FROM lap_data WHERE year = ? AND round = ?",

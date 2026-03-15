@@ -94,18 +94,26 @@ pip install -r requirements.txt
 
 ### Collect data
 
+The `--session` flag controls what gets collected:
+
+| Flag | When to use |
+|---|---|
+| `--session all` (default) | Full season backfill — collects qualifying + race for each round |
+| `--session quali` | After qualifying, before the race |
+| `--session race` | After the race finishes |
+
 ```bash
-# Collect an entire season (run once to populate historical data)
+# Collect an entire past season (qualifying + race for every round)
 python main.py collect --year 2025
 
-# Collect a single round
-python main.py collect --year 2026 --round 1
+# After qualifying for an upcoming race
+python main.py collect --year 2026 --round 3 --session quali
+
+# After the race finishes
+python main.py collect --year 2026 --round 3 --session race --force
 
 # Also collect telemetry (slow first run, then cached)
 python main.py collect --year 2025 --telemetry
-
-# Re-collect a round after a race finishes (to add results)
-python main.py collect --year 2026 --round 1 --force
 ```
 
 ### Train the model
@@ -160,16 +168,31 @@ python main.py summary
 
 ## Typical Workflow Each Race Weekend
 
+### After qualifying (before the race)
+
 ```bash
-# 1. After qualifying — collect qualifying session
-python main.py collect --year 2026 --round 3
+# 1. Collect qualifying session + circuit metadata
+python main.py collect --year 2026 --round 3 --session quali
 
-# 2. Generate prediction (auto-fetches weather forecast)
+# 2. Predict the race (auto-fetches Open-Meteo weather forecast)
 python main.py predict --year 2026 --round 3
+```
 
-# 3. After the race — collect results and retrain
-python main.py collect --year 2026 --round 3 --force
+`train` is not needed here — the model already learned the qualifying→race relationship
+from all historical rounds. The new qualifying data feeds directly into the prediction features.
+
+### After the race
+
+```bash
+# 1. Collect race results + weather
+python main.py collect --year 2026 --round 3 --session race --force
+
+# 2. Retrain on all data including the new race result
 python main.py train
+
+# 3. Predict next round (after its qualifying is collected)
+python main.py collect --year 2026 --round 4 --session quali
+python main.py predict --year 2026 --round 4
 ```
 
 ---

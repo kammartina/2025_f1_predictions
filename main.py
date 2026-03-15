@@ -69,12 +69,14 @@ def cmd_collect(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
         pipeline.collect_round(
             year=args.year,
             round_num=args.round,
+            sessions=args.session,
             include_telemetry=args.telemetry,
             force=args.force,
         )
     else:
         pipeline.collect_season(
             year=args.year,
+            sessions=args.session,
             include_telemetry=args.telemetry,
             force=args.force,
         )
@@ -198,6 +200,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_collect = sub.add_parser("collect", help="Fetch race data from FastF1")
     p_collect.add_argument("--year", type=int, required=True, help="Season year")
     p_collect.add_argument("--round", type=int, help="Round number (omit = entire season)")
+    p_collect.add_argument(
+        "--session",
+        choices=["all", "quali", "race"],
+        default="all",
+        help=(
+            "Which sessions to collect: "
+            "'all' (default) = qualifying + race, "
+            "'quali' = qualifying only (run after qualifying, before race), "
+            "'race' = race only (run after race finishes)"
+        ),
+    )
     p_collect.add_argument("--telemetry", action="store_true", help="Also collect telemetry (slow)")
     p_collect.add_argument("--force", action="store_true", help="Re-collect even if data exists")
 

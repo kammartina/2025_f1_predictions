@@ -80,25 +80,41 @@ class SessionCollector(BaseCollector):
         self,
         year: int,
         round_num: int,
+        sessions: str = "all",
         include_telemetry: bool = False,
         force: bool = False,
     ) -> None:
         """
-        Collect all data for one race weekend.
+        Collect data for one race weekend.
 
         Parameters
         ----------
         year              : Season year
         round_num         : Round number (1-based)
+        sessions          : Which sessions to collect:
+                            "all"   – qualifying + race (default)
+                            "quali" – qualifying only (use after qualifying, before race)
+                            "race"  – race only (use after race finishes)
         include_telemetry : Whether to collect and store aggregated telemetry
                             (slow on first run; all data is then cached)
         force             : Re-collect even if data already exists in DB
         """
-        if self.db.session_results_exist(year, round_num) and not force:
-            logger.info("Round %d/%d already in database — skipping.", year, round_num)
-            return
+        collect_race  = sessions in ("race", "all")
+        collect_quali = sessions in ("quali", "all")
 
-        steps = 4 + (1 if include_telemetry else 0)
+        # Skip checks
+        if not force:
+            if sessions == "race" and self.db.session_results_exist(year, round_num):
+                logger.info("Race %d/%d already in database — skipping.", year, round_num)
+                return
+            if sessions == "quali" and self.db.qualifying_results_exist(year, round_num):
+                logger.info("Qualifying %d/%d already in database — skipping.", year, round_num)
+                return
+            if sessions == "all" and self.db.session_results_exist(year, round_num):
+                logger.info("Round %d/%d already in database — skipping.", year, round_num)
+                return
+
+        steps = (2 if collect_race else 0) + (2 if collect_quali else 0) + (1 if include_telemetry and collect_race else 0)
         with tqdm(
             total=steps,
             desc=f"    R{round_num:02d}",
@@ -107,57 +123,64 @@ class SessionCollector(BaseCollector):
             ncols=72,
             bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}] {postfix}",
         ) as pbar:
-            # ── Step 1: load race session from FastF1 ──────────────────────
-            pbar.set_postfix_str("loading race session…")
             race_available = False
-            try:
-                race_session = fastf1.get_session(year, round_num, "R")
-                race_session.load(telemetry=include_telemetry, weather=True, laps=True)
-                if len(race_session.drivers) == 0:
-                    logger.warning(
-                        "Race data not yet published for %d R%d — skipping race steps.",
-                        year, round_num,
-                    )
-                else:
-                    race_available = True
-            except Exception as exc:
-                logger.warning("Could not load race session %d R%d: %s", year, round_num, exc)
-            pbar.update(1)
 
-            # ── Step 2: store race data ────────────────────────────────────
-            if race_available:
-                pbar.set_postfix_str("storing race data…")
-                self._store_race_metadata(race_session, year, round_num)
-                self._store_drivers_and_teams(race_session, year)
-                self._store_session_results(race_session, year, round_num)
-                self._store_lap_data(race_session, year, round_num)
-                self._store_pit_stops(race_session, year, round_num)
-                self._store_weather(race_session, year, round_num, session_type="R")
-            pbar.update(1)
-
-            # ── Step 3 (optional): telemetry ──────────────────────────────
-            if include_telemetry:
-                if race_available:
-                    pbar.set_postfix_str("storing telemetry…")
-                    self._store_telemetry_summary(race_session, year, round_num)
+            # ── Race steps ────────────────────────────────────────────────
+            if collect_race:
+                pbar.set_postfix_str("loading race session…")
+                try:
+                    race_session = fastf1.get_session(year, round_num, "R")
+                    race_session.load(telemetry=include_telemetry, weather=True, laps=True)
+                    if len(race_session.drivers) == 0:
+                        logger.warning(
+                            "Race data not yet published for %d R%d — skipping race steps.",
+                            year, round_num,
+                        )
+                    else:
+                        race_available = True
+                except Exception as exc:
+                    logger.warning("Could not load race session %d R%d: %s", year, round_num, exc)
                 pbar.update(1)
 
-            # ── Step 4: load qualifying session ───────────────────────────
-            pbar.set_postfix_str("loading qualifying session…")
-            try:
-                quali_session = fastf1.get_session(year, round_num, "Q")
-                quali_session.load(telemetry=False, weather=True, laps=False)
-            except Exception as exc:
-                logger.warning("Could not load qualifying for %d R%d: %s", year, round_num, exc)
-                pbar.update(2)  # skip both remaining qualifying steps
-                return
-            pbar.update(1)
+                if race_available:
+                    pbar.set_postfix_str("storing race data…")
+                    self._store_race_metadata(race_session, year, round_num)
+                    self._store_drivers_and_teams(race_session, year)
+                    self._store_session_results(race_session, year, round_num)
+                    self._store_lap_data(race_session, year, round_num)
+                    self._store_pit_stops(race_session, year, round_num)
+                    self._store_weather(race_session, year, round_num, session_type="R")
+                pbar.update(1)
 
-            # ── Step 5: store qualifying data ─────────────────────────────
-            pbar.set_postfix_str("storing qualifying data…")
-            self._store_qualifying_results(quali_session, year, round_num)
-            self._store_weather(quali_session, year, round_num, session_type="Q")
-            pbar.update(1)
+                if include_telemetry:
+                    if race_available:
+                        pbar.set_postfix_str("storing telemetry…")
+                        self._store_telemetry_summary(race_session, year, round_num)
+                    pbar.update(1)
+
+            # ── Qualifying steps ──────────────────────────────────────────
+            if collect_quali:
+                pbar.set_postfix_str("loading qualifying session…")
+                try:
+                    quali_session = fastf1.get_session(year, round_num, "Q")
+                    quali_session.load(telemetry=False, weather=True, laps=False)
+                except Exception as exc:
+                    logger.warning("Could not load qualifying for %d R%d: %s", year, round_num, exc)
+                    pbar.update(2)
+                    return
+                pbar.update(1)
+
+                pbar.set_postfix_str("storing qualifying data…")
+                # If race wasn't collected (or wasn't available), store circuit
+                # metadata from the qualifying session so that WeatherCollector
+                # and predict can look up coordinates and race date.
+                if not race_available:
+                    self._store_race_metadata(quali_session, year, round_num)
+                self._store_drivers_and_teams(quali_session, year)
+                self._store_qualifying_results(quali_session, year, round_num)
+                self._store_weather(quali_session, year, round_num, session_type="Q")
+                pbar.update(1)
+
             pbar.set_postfix_str("done")
 
         logger.info("Round %d/%d collected successfully.", year, round_num)
