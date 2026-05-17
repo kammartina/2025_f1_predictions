@@ -39,14 +39,14 @@ collect → train → predict
 | Circuit | `circuit_type_enc` (street / technical / high_speed / mixed), `sc_probability` |
 | Telemetry (optional) | `tel_mean_speed`, `tel_max_speed`, `tel_brake_pct`, `tel_drs_pct` |
 
-### Latest Training Run (2026-03-11)
+### Latest Training Run (2026-05-05)
 
 | Metric | Value |
 |---|---|
-| Trained through | 2026 R01 (25 races) |
-| Mean Spearman r | 0.593 |
+| Trained through | 2026 R04 (28 races) |
+| Mean Spearman r | 0.608 |
 | Mean top-3 overlap | 2.04 / 3 |
-| Top feature | `quali_position` (importance 0.238) |
+| Top feature | `quali_position` (importance 0.250) |
 
 ---
 
@@ -63,6 +63,7 @@ collect → train → predict
 ├── src/
 │   ├── pipeline.py                # F1Pipeline orchestrator
 │   ├── collectors/
+│   │   ├── base_collector.py      # Shared collector base class
 │   │   ├── session_collector.py   # FastF1 race + qualifying data
 │   │   └── weather_collector.py   # Open-Meteo historical + forecast
 │   ├── features/
