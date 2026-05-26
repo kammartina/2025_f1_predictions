@@ -39,14 +39,14 @@ collect → train → predict
 | Circuit | `circuit_type_enc` (street / technical / high_speed / mixed), `sc_probability` |
 | Telemetry (optional) | `tel_mean_speed`, `tel_max_speed`, `tel_brake_pct`, `tel_drs_pct` |
 
-### Latest Training Run (2026-05-05)
+### Latest Training Run (2026-05-26)
 
 | Metric | Value |
 |---|---|
-| Trained through | 2026 R04 (28 races) |
-| Mean Spearman r | 0.608 |
-| Mean top-3 overlap | 2.04 / 3 |
-| Top feature | `quali_position` (importance 0.250) |
+| Trained through | 2026 R05 (29 races) |
+| Mean Spearman r | 0.584 |
+| Mean top-3 overlap | 1.86 / 3 |
+| Top feature | `quali_position` (importance 0.171) |
 
 ---
 
