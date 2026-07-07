@@ -39,14 +39,14 @@ collect → train → predict
 | Circuit | `circuit_type_enc` (street / technical / high_speed / mixed), `sc_probability` |
 | Telemetry (optional) | `tel_mean_speed`, `tel_max_speed`, `tel_brake_pct`, `tel_drs_pct` |
 
-### Latest Training Run (2026-06-29)
+### Latest Training Run (2026-07-07)
 
 | Metric | Value |
 |---|---|
-| Trained through | 2026 R08 Austria (32 races) |
-| Mean Spearman r | 0.591 |
-| Mean top-3 overlap | 1.84 / 3 |
-| Top feature | `quali_position` (importance 0.210) |
+| Trained through | 2026 R09 British Grand Prix (33 races) |
+| Mean Spearman r | 0.584 |
+| Mean top-3 overlap | 1.85 / 3 |
+| Top feature | `quali_position` (importance 0.222) |
 
 ---
 
