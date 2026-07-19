@@ -29,7 +29,7 @@ collect → train → predict
 
 | Group | Features |
 |---|---|
-| Qualifying | `quali_time`, `quali_position`, `q3_time` |
+| Qualifying | `quali_time`, `quali_position`, `q3_time`, `grid_position` (accounts for grid penalties) |
 | Race pace | `clean_air_pace`, `avg_lap_time`, `avg_sector1/2/3` |
 | Tire degradation | `tire_deg_soft/medium/hard` (slope of lap time vs tire age) |
 | Pit stops | `avg_pit_duration` (team historical median) |
@@ -143,6 +143,24 @@ python main.py predict --year 2026 --round 2 --no-auto-weather
 ```
 
 Qualifying for the target round must be collected first.
+
+### Grid penalties
+
+`quali_position` reflects pure qualifying pace; `grid_position` is what the model
+actually treats as the starting slot, and is what matters for prediction accuracy.
+It defaults to `quali_position` (no penalty) and is automatically corrected from
+the official race-day grid once `collect --session race` runs. If a penalty is
+announced **before** the race (and thus before that sync can happen), record it
+manually so the prediction uses the real starting slot:
+
+```bash
+# Norris qualified P1 but has a 10-place grid penalty for round 10 → starts P11
+python main.py set-grid --year 2026 --round 10 --driver NOR --grid 11
+python main.py predict --year 2026 --round 10
+```
+
+Any manual value is overwritten automatically once the official grid is collected
+after the race, so there's no cleanup step needed.
 
 ### Other commands
 

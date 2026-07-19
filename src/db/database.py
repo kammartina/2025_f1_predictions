@@ -64,6 +64,26 @@ class F1Database:
         """Create all tables if they do not already exist."""
         for ddl in ALL_TABLES:
             self.conn.execute(ddl)
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """Idempotent schema patches for databases created before a column existed."""
+        self.conn.execute(
+            "ALTER TABLE qualifying_results ADD COLUMN IF NOT EXISTS grid_position INTEGER"
+        )
+        # Backfill grid_position from the official race-day grid (session_results),
+        # which reflects any post-qualifying penalties. Safe to re-run: only touches
+        # rows that disagree with the known-good official value.
+        self.conn.execute(
+            """
+            UPDATE qualifying_results AS q
+            SET grid_position = s.grid_position
+            FROM session_results AS s
+            WHERE q.year = s.year AND q.round = s.round AND q.driver_code = s.driver_code
+              AND s.grid_position IS NOT NULL
+              AND (q.grid_position IS NULL OR q.grid_position != s.grid_position)
+            """
+        )
 
     # ------------------------------------------------------------------
     # Generic query helpers
@@ -136,6 +156,46 @@ class F1Database:
             [year, round_num],
         )
         return int(result["cnt"].iloc[0]) > 0
+
+    def set_grid_position(
+        self, year: int, round_num: int, driver_code: str, grid_position: int
+    ) -> bool:
+        """
+        Manually set (or correct) a driver's actual starting grid slot — e.g.
+        to record a post-qualifying grid penalty before the race weekend's
+        official grid is known. Overwritten automatically once the real race
+        grid is collected (see sync_grid_positions_from_results).
+
+        Returns True if a qualifying_results row existed and was updated.
+        """
+        self.execute(
+            "UPDATE qualifying_results SET grid_position = ? "
+            "WHERE year = ? AND round = ? AND driver_code = ?",
+            [grid_position, year, round_num, driver_code],
+        )
+        result = self.query(
+            "SELECT COUNT(*) AS cnt FROM qualifying_results "
+            "WHERE year = ? AND round = ? AND driver_code = ? AND grid_position = ?",
+            [year, round_num, driver_code, grid_position],
+        )
+        return int(result["cnt"].iloc[0]) > 0
+
+    def sync_grid_positions_from_results(self, year: int, round_num: int) -> None:
+        """
+        Backfill qualifying_results.grid_position from the official race-day
+        grid stored in session_results, which reflects any grid penalties.
+        Call this after a race session has been collected.
+        """
+        self.execute(
+            """
+            UPDATE qualifying_results AS q
+            SET grid_position = s.grid_position
+            FROM session_results AS s
+            WHERE q.year = s.year AND q.round = s.round AND q.driver_code = s.driver_code
+              AND s.year = ? AND s.round = ? AND s.grid_position IS NOT NULL
+            """,
+            [year, round_num],
+        )
 
     # ------------------------------------------------------------------
     # Convenience read methods

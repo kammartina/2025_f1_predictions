@@ -181,6 +181,12 @@ class SessionCollector(BaseCollector):
                 self._store_weather(quali_session, year, round_num, session_type="Q")
                 pbar.update(1)
 
+            # Reconcile grid_position with the official race-day grid (accounts
+            # for any post-qualifying penalties) now that both sessions, if
+            # collected, are stored.
+            if race_available:
+                self.db.sync_grid_positions_from_results(year, round_num)
+
             pbar.set_postfix_str("done")
 
         logger.info("Round %d/%d collected successfully.", year, round_num)
@@ -274,6 +280,7 @@ class SessionCollector(BaseCollector):
         rows = []
         for _, row in results.iterrows():
             pos = row.get("Position")
+            pos = int(pos) if not pd.isna(pos) else None
             rows.append({
                 "year":                 year,
                 "round":                round_num,
@@ -281,7 +288,10 @@ class SessionCollector(BaseCollector):
                 "q1_time":              _td_to_sec(row.get("Q1")),
                 "q2_time":              _td_to_sec(row.get("Q2")),
                 "q3_time":              _td_to_sec(row.get("Q3")),
-                "qualifying_position":  int(pos) if not pd.isna(pos) else None,
+                "qualifying_position":  pos,
+                # Assume no penalty until a penalty is recorded (set-grid) or
+                # the official race-day grid is synced in.
+                "grid_position":        pos,
             })
 
         self.db.insert_df(pd.DataFrame(rows), "qualifying_results")

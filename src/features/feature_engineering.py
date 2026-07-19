@@ -7,7 +7,7 @@ race being predicted — this prevents data leakage.
 
 Feature groups
 ──────────────
-  Qualifying      : quali_time, quali_position
+  Qualifying      : quali_time, quali_position, grid_position (accounts for penalties)
   Sector pace     : avg sector times at same circuit type (historical)
   Race pace       : clean-air pace (historical), historical avg lap time
   Tire degradation: slope of lap-time vs tire-age per compound (historical)
@@ -248,9 +248,17 @@ class FeatureEngineer:
         q1 = quali_row.get("q1_time")
         best_time = next((t for t in [q3, q2, q1] if t and not pd.isna(t)), None)
 
+        quali_position = quali_row.get("qualifying_position")
+        grid_position = quali_row.get("grid_position")
+        if grid_position is None or pd.isna(grid_position):
+            # Databases from before grid_position existed, or a round whose
+            # penalty (if any) hasn't been recorded yet — assume no penalty.
+            grid_position = quali_position
+
         return {
             "quali_time":     best_time,
-            "quali_position": quali_row.get("qualifying_position"),
+            "quali_position": quali_position,
+            "grid_position":  grid_position,
             "q3_time":        q3 if not pd.isna(q3) else None,
         }
 

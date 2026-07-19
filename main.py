@@ -6,6 +6,7 @@ Commands
   collect   Fetch race data from FastF1 and store in the database
   train     Build feature matrix and train the XGBoost model
   predict   Predict finishing order for an upcoming race
+  set-grid  Manually correct a driver's starting grid slot (e.g. grid penalty)
   evaluate  Run leave-one-race-out cross-validation and print accuracy
   summary   Print a summary of what is currently in the database
   features  Show feature importances from the trained model
@@ -30,6 +31,10 @@ Examples
   # Predict an upcoming race (after qualifying is stored)
   python main.py predict --year 2026 --round 1
   python main.py predict --year 2026 --round 1 --air-temp 28 --rainfall 0
+
+  # Record a post-qualifying grid penalty, then re-predict
+  python main.py set-grid --year 2026 --round 10 --driver NOR --grid 11
+  python main.py predict --year 2026 --round 10
 
   # Evaluate model accuracy
   python main.py evaluate
@@ -162,6 +167,26 @@ def cmd_evaluate(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
     )
 
 
+def cmd_set_grid(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
+    from src.db.database import F1Database
+
+    driver = args.driver.upper()
+    with F1Database(pipeline.db_path) as db:
+        updated = db.set_grid_position(args.year, args.round, driver, args.grid)
+
+    if updated:
+        print(
+            f"Grid position for {driver} in {args.year} R{args.round:02d} "
+            f"set to P{args.grid}. Re-run 'predict' to pick it up."
+        )
+    else:
+        print(
+            f"No qualifying data found for {driver} in {args.year} R{args.round:02d}. "
+            "Collect qualifying data first: "
+            f"python main.py collect --year {args.year} --round {args.round} --session quali"
+        )
+
+
 def cmd_summary(_args: argparse.Namespace, pipeline: F1Pipeline) -> None:
     pipeline.database_summary()
 
@@ -236,6 +261,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable automatic Open-Meteo forecast fetching (use historical median instead)",
     )
 
+    # set-grid
+    p_grid = sub.add_parser(
+        "set-grid",
+        help="Manually set a driver's actual starting grid slot (e.g. after a grid penalty)",
+    )
+    p_grid.add_argument("--year",  type=int, required=True)
+    p_grid.add_argument("--round", type=int, required=True)
+    p_grid.add_argument("--driver", required=True, help="Driver code, e.g. NOR")
+    p_grid.add_argument("--grid", type=int, required=True, help="Actual starting grid slot after penalties")
+
     # evaluate
     p_eval = sub.add_parser("evaluate", help="Run leave-one-race-out CV")
     p_eval.add_argument("--years", type=int, nargs="+")
@@ -267,6 +302,7 @@ def main() -> None:
         "collect":  cmd_collect,
         "train":    cmd_train,
         "predict":  cmd_predict,
+        "set-grid": cmd_set_grid,
         "evaluate": cmd_evaluate,
         "summary":  cmd_summary,
         "features": cmd_features,

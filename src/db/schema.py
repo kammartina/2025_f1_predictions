@@ -106,6 +106,11 @@ CREATE TABLE IF NOT EXISTS qualifying_results (
     q2_time               REAL,
     q3_time               REAL,
     qualifying_position   INTEGER,
+    grid_position         INTEGER,  -- actual starting slot; differs from
+                                     -- qualifying_position when a grid penalty
+                                     -- applies. Defaults to qualifying_position
+                                     -- until overridden (set-grid) or synced
+                                     -- from the official race-day grid.
     PRIMARY KEY (year, round, driver_code)
 )
 """
