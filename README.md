@@ -11,7 +11,7 @@ collect → train → predict
 ```
 
 1. **Collect** — Pulls race and qualifying sessions from the FastF1 API and historical weather from Open-Meteo. Stores everything in a local DuckDB database (`data/f1_data.db`).
-2. **Train** — Builds a 30-feature matrix (one row per driver per race) and trains an XGBoost regressor. Runs Leave-One-Race-Out CV to report Spearman correlation and top-3 overlap accuracy.
+2. **Train** — Builds a 31-feature matrix (one row per driver per race) and trains an XGBoost regressor. Runs Leave-One-Race-Out CV to report Spearman correlation and top-3 overlap accuracy.
 3. **Predict** — After qualifying is collected for an upcoming race, generates a ranked finishing-order prediction. Automatically fetches an Open-Meteo race-day forecast (falls back to historical median if the race is too far out).
 
 ---
@@ -25,7 +25,7 @@ collect → train → predict
 | **Weighting** | Recency — recent races weighted higher (half-life = 12 races) |
 | **Missing values** | Passed directly to XGBoost (no imputation needed) |
 
-### Feature Groups (30 features)
+### Feature Groups (31 features)
 
 | Group | Features |
 |---|---|
@@ -39,14 +39,14 @@ collect → train → predict
 | Circuit | `circuit_type_enc` (street / technical / high_speed / mixed), `sc_probability` |
 | Telemetry (optional) | `tel_mean_speed`, `tel_max_speed`, `tel_brake_pct`, `tel_drs_pct` |
 
-### Latest Training Run (2026-07-07)
+### Latest Training Run (2026-07-19)
 
 | Metric | Value |
 |---|---|
-| Trained through | 2026 R09 British Grand Prix (33 races) |
-| Mean Spearman r | 0.584 |
-| Mean top-3 overlap | 1.85 / 3 |
-| Top feature | `quali_position` (importance 0.222) |
+| Trained through | 2026 R10 Belgian Grand Prix (34 races) |
+| Mean Spearman r | 0.590 |
+| Mean top-3 overlap | 2.00 / 3 |
+| Top feature | `grid_position` (importance 0.190) |
 
 ---
 
@@ -193,7 +193,10 @@ python main.py summary
 # 1. Collect qualifying session + circuit metadata
 python main.py collect --year 2026 --round 3 --session quali
 
-# 2. Predict the race (auto-fetches Open-Meteo weather forecast)
+# 2. If a grid penalty is announced, record the driver's actual starting slot
+python main.py set-grid --year 2026 --round 3 --driver NOR --grid 13
+
+# 3. Predict the race (auto-fetches Open-Meteo weather forecast)
 python main.py predict --year 2026 --round 3
 ```
 

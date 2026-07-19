@@ -590,6 +590,7 @@ class FeatureEngineer:
         return [
             "quali_time",
             "quali_position",
+            "grid_position",
             "q3_time",
             "clean_air_pace",
             "avg_sector1",
