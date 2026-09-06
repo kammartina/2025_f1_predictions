@@ -180,6 +180,40 @@ class F1Database:
         )
         return int(result["cnt"].iloc[0]) > 0
 
+    def set_full_grid(
+        self, year: int, round_num: int, ordered_driver_codes: list[str]
+    ) -> dict:
+        """
+        Set every driver's grid_position at once from a fully ordered starting
+        grid (first element = pole). Prefer this over repeated calls to
+        set_grid_position() when a penalty affects one driver — everyone
+        behind them shifts up one slot too, and updating only the penalized
+        driver leaves stale (and potentially duplicate) grid_position values
+        for everyone who moved.
+
+        Returns {"missing": [...], "unlisted": [...]}:
+          missing  – codes in ordered_driver_codes with no qualifying_results
+                     row for this round (skipped)
+          unlisted – codes that have a qualifying_results row for this round
+                     but were not included in ordered_driver_codes (left
+                     untouched — almost certainly a mistake if non-empty)
+        """
+        existing = self.query(
+            "SELECT driver_code FROM qualifying_results WHERE year = ? AND round = ?",
+            [year, round_num],
+        )
+        existing_codes = set(existing["driver_code"])
+
+        missing = []
+        seen = set()
+        for i, code in enumerate(ordered_driver_codes, start=1):
+            seen.add(code)
+            if not self.set_grid_position(year, round_num, code, i):
+                missing.append(code)
+
+        unlisted = sorted(existing_codes - seen)
+        return {"missing": missing, "unlisted": unlisted}
+
     def sync_grid_positions_from_results(self, year: int, round_num: int) -> None:
         """
         Backfill qualifying_results.grid_position from the official race-day

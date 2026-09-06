@@ -153,11 +153,20 @@ the official race-day grid once `collect --session race` runs. If a penalty is
 announced **before** the race (and thus before that sync can happen), record it
 manually so the prediction uses the real starting slot:
 
+A penalty almost always shifts more than one driver — everyone originally behind
+the penalized driver moves up a slot too — so set the **whole grid at once** with
+`--order` (pole first) rather than one driver at a time:
+
 ```bash
-# Norris qualified P1 but has a 10-place grid penalty for round 10 → starts P11
-python main.py set-grid --year 2026 --round 10 --driver NOR --grid 11
-python main.py predict --year 2026 --round 10
+# Official starting grid for round 13, penalties already applied
+python main.py set-grid --year 2026 --round 13 --order \
+  GAS RUS LEC HAM VER PIA COL NOR LIN BOR BEA HUL SAI OCO TSU BOT PER STR ANT ALB ALO LAW
+python main.py predict --year 2026 --round 13
 ```
+
+`--driver X --grid N` still exists for a single correction, but only use it when
+the penalized driver is already last on the grid (nobody needs to shift past
+them) — otherwise it leaves stale, colliding grid slots for everyone who moved.
 
 Any manual value is overwritten automatically once the official grid is collected
 after the race, so there's no cleanup step needed.
@@ -193,8 +202,8 @@ python main.py summary
 # 1. Collect qualifying session + circuit metadata
 python main.py collect --year 2026 --round 3 --session quali
 
-# 2. If a grid penalty is announced, record the driver's actual starting slot
-python main.py set-grid --year 2026 --round 3 --driver NOR --grid 13
+# 2. If penalties are announced, record the actual starting grid (pole first)
+python main.py set-grid --year 2026 --round 3 --order VER NOR LEC HAM ...
 
 # 3. Predict the race (auto-fetches Open-Meteo weather forecast)
 python main.py predict --year 2026 --round 3

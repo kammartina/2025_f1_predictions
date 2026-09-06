@@ -170,6 +170,32 @@ def cmd_evaluate(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
 def cmd_set_grid(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
     from src.db.database import F1Database
 
+    if args.order:
+        codes = [c.upper() for c in args.order]
+        with F1Database(pipeline.db_path) as db:
+            result = db.set_full_grid(args.year, args.round, codes)
+
+        n_set = len(codes) - len(result["missing"])
+        print(
+            f"Grid set for {n_set}/{len(codes)} drivers in "
+            f"{args.year} R{args.round:02d}. Re-run 'predict' to pick it up."
+        )
+        if result["missing"]:
+            print(
+                f"  No qualifying data for: {', '.join(result['missing'])} — skipped."
+            )
+        if result["unlisted"]:
+            print(
+                f"  WARNING: these drivers have qualifying data for this round but "
+                f"were not in --order, so their grid_position was left unchanged: "
+                f"{', '.join(result['unlisted'])}"
+            )
+        return
+
+    if not args.driver or args.grid is None:
+        print("Provide either --order <full grid, pole first> or --driver X --grid N.")
+        return
+
     driver = args.driver.upper()
     with F1Database(pipeline.db_path) as db:
         updated = db.set_grid_position(args.year, args.round, driver, args.grid)
@@ -177,7 +203,11 @@ def cmd_set_grid(args: argparse.Namespace, pipeline: F1Pipeline) -> None:
     if updated:
         print(
             f"Grid position for {driver} in {args.year} R{args.round:02d} "
-            f"set to P{args.grid}. Re-run 'predict' to pick it up."
+            f"set to P{args.grid}. Re-run 'predict' to pick it up.\n"
+            "Note: this only moves this one driver — anyone else who shifted "
+            "as a result (typically everyone behind them) needs updating too. "
+            "Prefer --order for a full grid unless only one driver at the very "
+            "back changed."
         )
     else:
         print(
@@ -268,8 +298,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_grid.add_argument("--year",  type=int, required=True)
     p_grid.add_argument("--round", type=int, required=True)
-    p_grid.add_argument("--driver", required=True, help="Driver code, e.g. NOR")
-    p_grid.add_argument("--grid", type=int, required=True, help="Actual starting grid slot after penalties")
+    p_grid.add_argument(
+        "--order",
+        nargs="+",
+        metavar="DRIVER",
+        help=(
+            "Full starting grid as an ordered list of driver codes, pole first "
+            "(sets every driver's grid_position in one shot — use this whenever "
+            "a penalty affects anyone who isn't literally last on the grid, "
+            "since everyone behind them shifts up too). "
+            "Example: --order VER NOR LEC HAM ..."
+        ),
+    )
+    p_grid.add_argument("--driver", help="Driver code, e.g. NOR (single-driver correction)")
+    p_grid.add_argument(
+        "--grid", type=int,
+        help="Actual starting grid slot for --driver (only safe when nobody else needs to shift)",
+    )
 
     # evaluate
     p_eval = sub.add_parser("evaluate", help="Run leave-one-race-out CV")
